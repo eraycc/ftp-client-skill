@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FTP Proxy Manager</title>
+<style>
+:root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+    --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+h1 { font-size: 1.6em; margin-bottom: 8px; }
+h1 span { color: var(--accent); }
+.subtitle { color: var(--text2); margin-bottom: 24px; font-size: 0.9em; }
+
+/* Connection Panel */
+.conn-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+.conn-panel h2 { font-size: 1.1em; margin-bottom: 14px; color: var(--accent); }
+.conn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 0.8em; color: var(--text2); }
+.field input, .field select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 0.9em; outline: none; }
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field.grow { flex: 1; min-width: 180px; }
+
+.conn-string-row { margin-top: 12px; display: flex; gap: 10px; align-items: end; }
+.conn-string-row .field { flex: 1; }
+
+.btn { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 600; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-success { background: var(--green); color: #fff; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-small { padding: 5px 12px; font-size: 0.82em; }
+
+/* Status */
+.status { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 0.85em; display: none; }
+.status.ok { display: block; background: rgba(63,185,80,0.15); border: 1px solid var(--green); color: var(--green); }
+.status.err { display: block; background: rgba(248,81,73,0.15); border: 1px solid var(--red); color: var(--red); }
+
+/* Main area */
+.main { display: flex; gap: 20px; }
+.sidebar { width: 260px; flex-shrink: 0; }
+.content { flex: 1; min-width: 0; }
+
+/* Path bar */
+.pathbar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pathbar .crumb { color: var(--accent); cursor: pointer; font-size: 0.9em; }
+.pathbar .crumb:hover { text-decoration: underline; }
+.pathbar .sep { color: var(--text2); }
+
+/* File browser */
+.file-table { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.file-table table { width: 100%; border-collapse: collapse; }
+.file-table th { background: rgba(255,255,255,0.05); text-align: left; padding: 10px 14px; font-size: 0.8em; color: var(--text2); border-bottom: 1px solid var(--border); }
+.file-table td { padding: 8px 14px; font-size: 0.88em; border-bottom: 1px solid var(--border); }
+.file-table tr:last-child td { border-bottom: none; }
+.file-table tr:hover td { background: rgba(88,166,255,0.06); }
+.fname { cursor: pointer; color: var(--accent); }
+.fname:hover { text-decoration: underline; }
+.fdir { color: var(--yellow); font-weight: 600; }
+.file-actions { display: flex; gap: 6px; }
+
+/* Toolbar */
+.toolbar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* Log / output */
+.output-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 16px; }
+.output-panel h3 { padding: 12px 16px; font-size: 0.9em; color: var(--text2); border-bottom: 1px solid var(--border); }
+.output-content { padding: 14px 16px; font-family: 'SF Mono', Consolas, monospace; font-size: 0.82em; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--text2); }
+
+/* Modal */
+.modal-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; z-index: 999; align-items: center; justify-content: center; }
+.modal-bg.active { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; min-width: 400px; max-width: 90vw; }
+.modal h3 { margin-bottom: 16px; }
+.modal .field { margin-bottom: 12px; }
+.modal .field input, .modal .field textarea { width: 100%; }
+.modal .field textarea { min-height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.9em; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+/* Upload area */
+.upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 30px; text-align: center; color: var(--text2); cursor: pointer; transition: border-color 0.2s; }
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); color: var(--accent); }
+
+.loading { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--text2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+    .main { flex-direction: column; }
+    .sidebar { width: 100%; }
+    .conn-row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>📂 <span>FTP Proxy</span> Manager</h1>
+    <p class="subtitle">通过 HTTP 代理管理远程 FTP/FTPS 服务器文件</p>
+
+    <!-- Connection Panel -->
+    <div class="conn-panel">
+        <h2>🔗 连接设置</h2>
+        <div class="conn-string-row">
+            <div class="field grow">
+                <label>快捷连接字符串（host:port,user,pass,mode,protocol,tls）</label>
+                <input type="text" id="connString" placeholder="ftp.example.com:21,user,password,passive,ftps,explicit">
+            </div>
+            <button class="btn btn-primary" onclick="parseConnString()">解析</button>
+        </div>
+        <div class="conn-row" style="margin-top: 14px;">
+            <div class="field grow"><label>主机</label><input type="text" id="fHost" placeholder="ftp.example.com"></div>
+            <div class="field"><label>端口</label><input type="number" id="fPort" value="21" style="width:80px;"></div>
+            <div class="field"><label>用户名</label><input type="text" id="fUser" placeholder="anonymous"></div>
+            <div class="field grow"><label>密码</label><input type="password" id="fPass" placeholder="密码"></div>
+            <div class="field"><label>模式</label>
+                <select id="fMode"><option value="passive">Passive</option><option value="active">Active</option></select>
+            </div>
+            <div class="field"><label>协议</label>
+                <select id="fProtocol" onchange="toggleTls()"><option value="ftp">FTP</option><option value="ftps">FTPS</option></select>
+            </div>
+            <div class="field" id="tlsField" style="display:none;"><label>TLS模式</label>
+                <select id="fTls"><option value="explicit">Explicit</option><option value="implicit">Implicit</option></select>
+            </div>
+            <button class="btn btn-success" onclick="testConnection()">测试连接</button>
+            <button class="btn btn-primary" onclick="connectAndList()">连接</button>
+        </div>
+        <div class="field" style="margin-top: 10px;">
+            <label>API Key（可选，如服务端设置了的话）</label>
+            <input type="text" id="fApiKey" placeholder="留空则不发送" style="max-width:350px;">
+        </div>
+        <div id="connStatus" class="status"></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="btn btn-primary btn-small" onclick="refreshList()">🔄 刷新</button>
+        <button class="btn btn-success btn-small" onclick="showUploadModal()">⬆️ 上传文件</button>
+        <button class="btn btn-primary btn-small" onclick="showMkdirModal()">📁 新建目录</button>
+        <button class="btn btn-primary btn-small" onclick="showWriteModal()">✏️ 新建/写入文件</button>
+    </div>
+
+    <!-- Path bar -->
+    <div class="pathbar" id="pathbar"></div>
+
+    <!-- File Table -->
+    <div class="file-table">
+        <table>
+            <thead><tr><th>类型</th><th>名称</th><th>大小</th><th>日期</th><th>操作</th></tr></thead>
+            <tbody id="fileList"><tr><td colspan="5" style="text-align:center;color:var(--text2);padding:30px;">请先连接 FTP 服务器</td></tr></tbody>
+        </table>
+    </div>
+
+    <!-- Output -->
+    <div class="output-panel">
+        <h3>📋 操作日志</h3>
+        <div class="output-content" id="logOutput">等待操作...\n</div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-bg" id="uploadModal">
+<div class="modal">
+    <h3>⬆️ 上传文件</h3>
+    <div class="field"><label>上传到远程路径（留空则上传到当前目录）</label><input type="text" id="uploadRemotePath" placeholder="/remote/path/filename"></div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('uploadFile').click()">
+        点击选择文件 或 拖拽文件到此区域
+        <input type="file" id="uploadFile" style="display:none;" onchange="handleFileSelect(event)">
+    </div>
+    <p id="uploadFileName" style="margin-top:8px;color:var(--text2);font-size:0.85em;"></p>
+    <div class="modal-actions">
+        <button class="btn btn-small" onclick="closeModal('uploadModal')" style="background:var(--border);color:var(--text);">取消</button>
+        <button class="btn btn-success btn-small" onclick="doUpload()">上传</button>
+    </div>
+</div>
+</div>
+
+<!-- Mkdir Modal -->
+<div class="modal-bg" id="mkdirModal">
+<div class="modal">
+    <h3>📁 新建目录</h3>
+    <div class="field"><label>目录路径</label><input type="text" id="mkdirPath" placeholder="/new-directory"></div>
+    <div class="modal-actions">
+        <button class="btn btn-small" onclick="closeModal('mkdirModal')" style="background:var(--border);color:var(--text);">取消</button>
+        <button class="btn btn-primary btn-small" onclick="doMkdir()">创建</button>
+    </div>
+</div>
+</div>
+
+<!-- Write File Modal -->
+<div class="modal-bg" id="writeModal">
+<div class="modal">
+    <h3>✏️ 新建/写入文件</h3>
+    <div class="field"><label>远程文件路径</label><input type="text" id="writePath" placeholder="/path/to/file.txt"></div>
+    <div class="field"><label>文件内容</label><textarea id="writeContent" placeholder="输入文件内容..."></textarea></div>
+    <div class="modal-actions">
+        <button class="btn btn-small" onclick="closeModal('writeModal')" style="background:var(--border);color:var(--text);">取消</button>
+        <button class="btn btn-success btn-small" onclick="doWriteFile()">写入</button>
+    </div>
+</div>
+</div>
+
+<!-- Read File Modal -->
+<div class="modal-bg" id="readModal">
+<div class="modal" style="max-width:700px;">
+    <h3>📄 文件内容</h3>
+    <div class="field"><textarea id="readContent" readonly style="min-height:250px;"></textarea></div>
+    <div class="modal-actions">
+        <button class="btn btn-small" onclick="closeModal('readModal')" style="background:var(--border);color:var(--text);">关闭</button>
+    </div>
+</div>
+</div>
+
+<script>
+const API_URL = 'api.php'; // 同目录下的 api.php
+let currentPath = '/';
+let selectedFile = null;
+
+// === Connection ===
+function getConn() {
+    return {
+        host: document.getElementById('fHost').value.trim(),
+        port: parseInt(document.getElementById('fPort').value) || 21,
+        username: document.getElementById('fUser').value.trim(),
+        password: document.getElementById('fPass').value,
+        mode: document.getElementById('fMode').value,
+        protocol: document.getElementById('fProtocol').value,
+        tls_mode: document.getElementById('fTls').value
+    };
+}
+
+function getApiKey() {
+    return document.getElementById('fApiKey').value.trim();
+}
+
+function toggleTls() {
+    document.getElementById('tlsField').style.display = document.getElementById('fProtocol').value === 'ftps' ? '' : 'none';
+}
+
+function parseConnString() {
+    const s = document.getElementById('connString').value.trim();
+    if (!s) return;
+    const p = s.split(',');
+    const hp = (p[0] || '').trim();
+    const li = hp.lastIndexOf(':');
+    if (li > 0) {
+        document.getElementById('fHost').value = hp.substring(0, li);
+        document.getElementById('fPort').value = hp.substring(li + 1);
+    } else {
+        document.getElementById('fHost').value = hp;
+    }
+    if (p[1]) document.getElementById('fUser').value = p[1].trim();
+    if (p[2]) document.getElementById('fPass').value = p[2].trim().replace(/%2C/gi, ',');
+    if (p[3]) document.getElementById('fMode').value = p[3].trim().toLowerCase();
+    if (p[4]) { document.getElementById('fProtocol').value = p[4].trim().toLowerCase(); toggleTls(); }
+    if (p[5]) document.getElementById('fTls').value = p[5].trim().toLowerCase();
+    showStatus('connStatus', '连接字符串已解析', false);
+}
+
+// === API call ===
+async function apiCall(body, isFormData = false) {
+    const key = getApiKey();
+    const headers = {};
+    if (key) headers['X-API-Key'] = key;
+
+    let fetchBody;
+    if (isFormData) {
+        fetchBody = body; // FormData, don't set Content-Type
+    } else {
+        headers['Content-Type'] = 'application/json';
+        fetchBody = JSON.stringify({ ...getConn(), ...body });
+    }
+
+    const res = await fetch(API_URL, { method: 'POST', headers, body: fetchBody });
+    const json = await res.json();
+    return json;
+}
+
+function log(msg) {
+    const el = document.getElementById('logOutput');
+    const ts = new Date().toLocaleTimeString();
+    el.textContent += `[${ts}] ${msg}\n`;
+    el.scrollTop = el.scrollHeight;
+}
+
+function showStatus(id, msg, isErr) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status ' + (isErr ? 'err' : 'ok');
+}
+
+// === Actions ===
+async function testConnection() {
+    log('Testing connection...');
+    try {
+        const r = await apiCall({ action: 'test' });
+        if (r.code === 200) {
+            showStatus('connStatus', '✅ ' + r.data.message + (r.data.pwd ? ' (pwd: ' + r.data.pwd + ')' : ''), false);
+            log('Connection test OK');
+        } else {
+            showStatus('connStatus', '❌ ' + r.message, true);
+            log('Connection test failed: ' + r.message);
+        }
+    } catch (e) {
+        showStatus('connStatus', '❌ ' + e.message, true);
+        log('Error: ' + e.message);
+    }
+}
+
+async function connectAndList() {
+    currentPath = '/';
+    await refreshList();
+}
+
+async function refreshList() {
+    log('Listing: ' + currentPath);
+    try {
+        const r = await apiCall({ action: 'list', path: currentPath, detailed: true });
+        if (r.code === 200) {
+            renderPathbar();
+            renderFileList(r.data.items);
+            showStatus('connStatus', '✅ 已连接', false);
+        } else {
+            showStatus('connStatus', '❌ ' + r.message, true);
+            log('List failed: ' + r.message);
+        }
+    } catch (e) {
+        log('Error: ' + e.message);
+    }
+}
+
+function renderPathbar() {
+    const el = document.getElementById('pathbar');
+    const parts = currentPath.split('/').filter(Boolean);
+    let html = `<span class="crumb" onclick="navigateTo('/')">/root</span>`;
+    let built = '';
+    for (const p of parts) {
+        built += '/' + p;
+        const path = built;
+        html += `<span class="sep">/</span><span class="crumb" onclick="navigateTo('${path}')">${p}</span>`;
+    }
+    el.innerHTML = html;
+}
+
+function renderFileList(items) {
+    const el = document.getElementById('fileList');
+    if (!items || items.length === 0) {
+        el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px;">目录为空</td></tr>';
+        return;
+    }
+
+    // 排序：目录在前
+    items.sort((a, b) => {
+        if (a.type === 'dir' && b.type !== 'dir') return -1;
+        if (a.type !== 'dir' && b.type === 'dir') return 1;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // 添加 .. 返回上级
+    if (currentPath !== '/') {
+        items.unshift({ name: '..', type: 'dir', size: '', date: '', _parent: true });
+    }
+
+    let html = '';
+    for (const item of items) {
+        const isDir = item.type === 'dir';
+        const icon = isDir ? '📁' : '📄';
+        const nameClass = isDir ? 'fname fdir' : 'fname';
+        const size = isDir ? '-' : formatSize(item.size);
+        const date = item.date || '';
+
+        const fullPath = item._parent
+            ? currentPath.replace(/\/[^/]+\/?$/, '') || '/'
+            : currentPath.replace(/\/$/, '') + '/' + item.name;
+
+        let actions = '';
+        if (!item._parent) {
+            if (isDir) {
+                actions = `
+                    <button class="btn btn-danger btn-small" onclick="doDelete('${fullPath}', true)" title="删除目录">🗑️</button>
+                    <button class="btn btn-primary btn-small" onclick="doRename('${fullPath}')" title="移动/重命名">✏️</button>`;
+            } else {
+                actions = `
+                    <button class="btn btn-primary btn-small" onclick="doReadFile('${fullPath}')" title="查看">👁</button>
+                    <button class="btn btn-success btn-small" onclick="doDownload('${fullPath}')" title="下载">⬇️</button>
+                    <button class="btn btn-danger btn-small" onclick="doDelete('${fullPath}', false)" title="删除">🗑️</button>
+                    <button class="btn btn-primary btn-small" onclick="doRename('${fullPath}')" title="移动/重命名">✏️</button>
+                    <button class="btn btn-primary btn-small" onclick="doCopy('${fullPath}')" title="复制">📋</button>`;
+            }
+        }
+
+        const clickAction = isDir ? `onclick="navigateTo('${fullPath}')"` : `onclick="doReadFile('${fullPath}')"`;
+
+        html += `<tr>
+            <td>${icon}</td>
+            <td><span class="${nameClass}" ${clickAction}>${item.name}</span></td>
+            <td>${size}</td>
+            <td style="color:var(--text2);font-size:0.82em;">${date}</td>
+            <td><div class="file-actions">${actions}</div></td>
+        </tr>`;
+    }
+    el.innerHTML = html;
+}
+
+function navigateTo(path) {
+    currentPath = path || '/';
+    refreshList();
+}
+
+function formatSize(bytes) {
+    if (bytes === null || bytes === undefined || bytes === '' || bytes < 0) return '-';
+    if (bytes === 0) return '0 B';
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + u[i];
+}
+
+// Download
+function doDownload(path) {
+    log('Downloading: ' + path);
+    const conn = getConn();
+    const key = getApiKey();
+    // 用表单提交下载（raw 模式直接输出文件）
+    const form = document.createElement('form');
+    form.method = 'POST'; form.action = API_URL; form.target = '_blank';
+    const fields = { ...conn, action: 'download', path, raw: '1' };
+    if (key) fields.api_key = key;
+    for (const [k, v] of Object.entries(fields)) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = k; inp.value = v;
+        form.appendChild(inp);
+    }
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    log('Download initiated for: ' + path);
+}
+
+// Delete
+async function doDelete(path, isDir) {
+    if (!confirm(`确定要删除 ${isDir ? '目录' : '文件'}: ${path} ?`)) return;
+    log('Deleting: ' + path);
+    try {
+        const r = await apiCall({ action: 'delete', path, is_dir: isDir });
+        if (r.code === 200) { log('Deleted: ' + path); refreshList(); }
+        else log('Delete failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Rename / Move
+async function doRename(path) {
+    const newPath = prompt('输入新路径:', path);
+    if (!newPath || newPath === path) return;
+    log(`Moving: ${path} → ${newPath}`);
+    try {
+        const r = await apiCall({ action: 'move', from: path, to: newPath });
+        if (r.code === 200) { log('Moved OK'); refreshList(); }
+        else log('Move failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Copy
+async function doCopy(path) {
+    const dest = prompt('复制到路径:', path.replace(/([^/]+)$/, 'copy_$1'));
+    if (!dest) return;
+    log(`Copying: ${path} → ${dest}`);
+    try {
+        const r = await apiCall({ action: 'copy', from: path, to: dest });
+        if (r.code === 200) { log('Copied OK'); refreshList(); }
+        else log('Copy failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Read file
+async function doReadFile(path) {
+    log('Reading: ' + path);
+    try {
+        const r = await apiCall({ action: 'read', path });
+        if (r.code === 200) {
+            document.getElementById('readContent').value = r.data.content || atob(r.data.content_base64 || '');
+            document.getElementById('readModal').classList.add('active');
+            log('Read OK: ' + path + ' (' + r.data.size + ' bytes)');
+        } else log('Read failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Upload
+function showUploadModal() {
+    document.getElementById('uploadRemotePath').value = currentPath === '/' ? '/' : currentPath + '/';
+    document.getElementById('uploadFile').value = '';
+    document.getElementById('uploadFileName').textContent = '';
+    document.getElementById('uploadModal').classList.add('active');
+}
+
+function handleFileSelect(e) {
+    const f = e.target.files[0];
+    if (f) document.getElementById('uploadFileName').textContent = '已选: ' + f.name + ' (' + formatSize(f.size) + ')';
+}
+
+// Drag & drop
+const uz = document.getElementById('uploadZone');
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('dragover'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('dragover'));
+uz.addEventListener('drop', e => {
+    e.preventDefault(); uz.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        document.getElementById('uploadFile').files = e.dataTransfer.files;
+        handleFileSelect({ target: { files: e.dataTransfer.files } });
+    }
+});
+
+async function doUpload() {
+    const file = document.getElementById('uploadFile').files[0];
+    if (!file) { alert('请选择文件'); return; }
+    let remotePath = document.getElementById('uploadRemotePath').value.trim();
+    if (!remotePath || remotePath.endsWith('/')) remotePath = (remotePath || '/') + file.name;
+
+    log('Uploading: ' + file.name + ' → ' + remotePath);
+    const fd = new FormData();
+    const conn = getConn();
+    for (const [k, v] of Object.entries(conn)) fd.append(k, v);
+    fd.append('action', 'upload');
+    fd.append('remote_path', remotePath);
+    fd.append('file', file);
+    const key = getApiKey();
+    if (key) fd.append('api_key', key);
+
+    try {
+        const r = await apiCall(fd, true);
+        if (r.code === 200) { log('Upload OK: ' + remotePath); closeModal('uploadModal'); refreshList(); }
+        else log('Upload failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Mkdir
+function showMkdirModal() {
+    document.getElementById('mkdirPath').value = currentPath === '/' ? '/new-folder' : currentPath + '/new-folder';
+    document.getElementById('mkdirModal').classList.add('active');
+}
+async function doMkdir() {
+    const path = document.getElementById('mkdirPath').value.trim();
+    if (!path) return;
+    log('Creating directory: ' + path);
+    try {
+        const r = await apiCall({ action: 'mkdir', path });
+        if (r.code === 200) { log('Mkdir OK'); closeModal('mkdirModal'); refreshList(); }
+        else log('Mkdir failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+// Write file
+function showWriteModal() {
+    document.getElementById('writePath').value = currentPath === '/' ? '/new-file.txt' : currentPath + '/new-file.txt';
+    document.getElementById('writeContent').value = '';
+    document.getElementById('writeModal').classList.add('active');
+}
+async function doWriteFile() {
+    const path = document.getElementById('writePath').value.trim();
+    const content = document.getElementById('writeContent').value;
+    if (!path) return;
+    log('Writing file: ' + path);
+    try {
+        const r = await apiCall({ action: 'upload', remote_path: path, content });
+        if (r.code === 200) { log('Write OK: ' + path); closeModal('writeModal'); refreshList(); }
+        else log('Write failed: ' + r.message);
+    } catch (e) { log('Error: ' + e.message); }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+// ESC 关闭
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
+});
+</script>
+</body>
+</html>
