@@ -1,14 +1,14 @@
 ---
 name: ftp-client-php
 description: FTP/FTPS file manager via PHP proxy. Supports list, upload, download, delete, move, copy, mkdir, read, write. Works behind NAT/firewalls (e.g. HuggingFace) by routing FTP operations through an HTTP PHP proxy.
-homepage: https://github.com/your-repo/ftp-client-php
+homepage: https://github.com/eraycc/ftp-client-skill/tree/main/ftp-client-php
 metadata:
   { "openclaw": { "emoji": "📂", "requires": { "bins": ["node"], "env": ["FTP_PHP_CONFIG"] }, "primaryEnv": "FTP_PHP_CONFIG" } }
 ---
 
 # FTP Client (PHP Proxy)
 
-Full-featured FTP/FTPS client skill for OpenClaw. Routes all FTP operations through an HTTP PHP proxy server, so it works even when direct FTP connections are blocked (e.g. HuggingFace Spaces, serverless environments).
+Full-featured FTP/FTPS client skill for OpenClaw. Routes all FTP operations through an HTTP PHP proxy server, so it works even when direct FTP connections are blocked (e.g. HuggingFace Spaces, serverless environments). [Click to deploy ftp-php-proxy](https://github.com/eraycc/ftp-client-skill/tree/main/ftp-proxy-php).
 
 ## Architecture
 
