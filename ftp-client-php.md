@@ -20,7 +20,7 @@ php -m | grep -E "ftp|curl"
 
 把下面的内容发送给openclaw：
 ```
-请帮我下载解压后安装这个skill：
+请帮我下载解压后安装这个skill：https://github.com/eraycc/ftp-client-skill/releases/download/v1.0-php/ftp-client-php.zip
 设置FTP_PHP_CONFIG环境变量为：{"ftp_php_domain":"https://yourserver.com/ftp-proxy/api.php","ftp_php_apikey":"apikey","ftp_client_host":"ftp.example.com","ftp_client_port":"port","ftp_client_username":"username","ftp_client_password":"password","ftp_client_connect_mode":"passive","ftp_client_protocol":"ftps","ftp_client_encrypt_mode":"explicit"}
 ```
 
